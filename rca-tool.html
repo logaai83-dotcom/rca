@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RCA.ai — Incident Root Cause Analyzer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #0a0c10;
+      --surface: #111318;
+      --surface2: #181c24;
+      --border: #1e2530;
+      --border2: #2a3340;
+      --accent: #00d4ff;
+      --accent2: #0099bb;
+      --warn: #ff6b35;
+      --success: #00c896;
+      --text: #e8edf5;
+      --text2: #8a9ab0;
+      --text3: #4a5568;
+      --red: #ff4757;
+      --amber: #ffa502;
+      --mono: 'IBM Plex Mono', monospace;
+      --sans: 'IBM Plex Sans', sans-serif;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: var(--sans);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.6;
+    }
+
+    /* HEADER */
+    header {
+      border-bottom: 1px solid var(--border);
+      padding: 0 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 56px;
+      position: sticky;
+      top: 0;
+      background: var(--bg);
+      z-index: 100;
+    }
+    .logo {
+      font-family: var(--mono);
+      font-size: 15px;
+      color: var(--accent);
+      letter-spacing: 0.05em;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .logo-dot { width: 8px; height: 8px; background: var(--accent); border-radius: 50%; animation: blink 2s infinite; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+    .header-tag {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text3);
+      border: 1px solid var(--border2);
+      padding: 3px 10px;
+      border-radius: 3px;
+    }
+
+    /* HERO */
+    .hero {
+      text-align: center;
+      padding: 4rem 2rem 2.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .hero-eyebrow {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--accent);
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      margin-bottom: 1rem;
+    }
+    .hero h1 {
+      font-size: clamp(28px, 5vw, 48px);
+      font-weight: 300;
+      letter-spacing: -0.02em;
+      line-height: 1.15;
+      color: var(--text);
+      margin-bottom: 1rem;
+    }
+    .hero h1 span { color: var(--accent); font-weight: 500; }
+    .hero p {
+      font-size: 15px;
+      color: var(--text2);
+      max-width: 520px;
+      margin: 0 auto;
+    }
+    .hero-stats {
+      display: flex;
+      justify-content: center;
+      gap: 2.5rem;
+      margin-top: 2rem;
+      flex-wrap: wrap;
+    }
+    .stat { text-align: center; }
+    .stat-num { font-family: var(--mono); font-size: 22px; color: var(--accent); font-weight: 500; }
+    .stat-label { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em; margin-top: 2px; }
+
+    /* MAIN LAYOUT */
+    .main { display: grid; grid-template-columns: 1fr 1fr; gap: 0; min-height: calc(100vh - 200px); }
+    @media (max-width: 900px) { .main { grid-template-columns: 1fr; } }
+
+    /* INPUT PANEL */
+    .input-panel {
+      border-right: 1px solid var(--border);
+      padding: 2rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+    .panel-title {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text3);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .field-group { display: flex; flex-direction: column; gap: 6px; }
+    .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    label {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text2);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    input, select, textarea {
+      background: var(--surface);
+      border: 1px solid var(--border2);
+      color: var(--text);
+      font-family: var(--sans);
+      font-size: 13px;
+      padding: 9px 12px;
+      border-radius: 4px;
+      width: 100%;
+      transition: border-color 0.2s;
+      outline: none;
+    }
+    input:focus, select:focus, textarea:focus {
+      border-color: var(--accent2);
+      background: var(--surface2);
+    }
+    input::placeholder, textarea::placeholder { color: var(--text3); }
+    select { cursor: pointer; }
+    select option { background: var(--surface); }
+    textarea { resize: vertical; min-height: 72px; line-height: 1.6; }
+
+    /* SEVERITY SELECTOR */
+    .sev-row { display: flex; gap: 8px; }
+    .sev-btn {
+      flex: 1;
+      padding: 7px 4px;
+      border: 1px solid var(--border2);
+      background: var(--surface);
+      color: var(--text2);
+      font-family: var(--mono);
+      font-size: 11px;
+      border-radius: 4px;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.15s;
+      letter-spacing: 0.04em;
+    }
+    .sev-btn:hover { border-color: var(--border); color: var(--text); }
+    .sev-btn.active-p1 { background: rgba(255,71,87,0.15); border-color: var(--red); color: var(--red); }
+    .sev-btn.active-p2 { background: rgba(255,165,2,0.15); border-color: var(--amber); color: var(--amber); }
+    .sev-btn.active-p3 { background: rgba(0,212,255,0.12); border-color: var(--accent2); color: var(--accent); }
+    .sev-btn.active-p4 { background: rgba(0,200,150,0.12); border-color: var(--success); color: var(--success); }
+
+    /* ANALYZE BUTTON */
+    .analyze-btn {
+      background: var(--accent);
+      color: #000;
+      border: none;
+      font-family: var(--mono);
+      font-size: 13px;
+      font-weight: 500;
+      padding: 13px;
+      border-radius: 4px;
+      cursor: pointer;
+      letter-spacing: 0.05em;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      margin-top: 4px;
+    }
+    .analyze-btn:hover:not(:disabled) { background: #00eeff; transform: translateY(-1px); }
+    .analyze-btn:active:not(:disabled) { transform: translateY(0); }
+    .analyze-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+    .spinner {
+      width: 14px; height: 14px;
+      border: 2px solid rgba(0,0,0,0.3);
+      border-top-color: #000;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* OUTPUT PANEL */
+    .output-panel {
+      padding: 2rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      overflow-y: auto;
+    }
+    .output-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 1.25rem;
+    }
+    .output-title-row { display: flex; align-items: center; gap: 10px; }
+    .live-badge {
+      font-family: var(--mono);
+      font-size: 10px;
+      background: rgba(0,212,255,0.12);
+      color: var(--accent);
+      border: 1px solid var(--accent2);
+      padding: 2px 8px;
+      border-radius: 3px;
+      letter-spacing: 0.08em;
+      display: none;
+    }
+    .live-badge.visible { display: inline-block; animation: fadeIn 0.3s; }
+    @keyframes fadeIn { from{opacity:0} to{opacity:1} }
+
+    /* EMPTY STATE */
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 320px;
+      gap: 12px;
+      color: var(--text3);
+    }
+    .empty-icon {
+      width: 48px; height: 48px;
+      border: 1px solid var(--border2);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px;
+    }
+    .empty-state p { font-size: 13px; text-align: center; max-width: 220px; line-height: 1.6; }
+
+    /* RCA SECTIONS */
+    .rca-section {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      margin-bottom: 10px;
+      overflow: hidden;
+      animation: slideIn 0.3s ease;
+    }
+    @keyframes slideIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+    .rca-section-header {
+      background: var(--surface);
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+    .rca-section-icon {
+      font-size: 14px;
+      width: 20px;
+      text-align: center;
+    }
+    .rca-section-title {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text2);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 500;
+    }
+    .rca-section-body {
+      padding: 12px 14px;
+      font-size: 13px;
+      color: var(--text2);
+      line-height: 1.75;
+    }
+    .rca-section-body ul { padding-left: 16px; }
+    .rca-section-body li { margin-bottom: 4px; }
+
+    /* ACTION ITEMS */
+    .action-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .action-chip {
+      font-family: var(--mono);
+      font-size: 11px;
+      padding: 4px 10px;
+      border-radius: 3px;
+      border: 1px solid;
+    }
+    .chip-now { background: rgba(255,71,87,0.1); border-color: rgba(255,71,87,0.4); color: #ff8a96; }
+    .chip-soon { background: rgba(255,165,2,0.1); border-color: rgba(255,165,2,0.4); color: #ffbe4d; }
+    .chip-later { background: rgba(0,212,255,0.08); border-color: rgba(0,212,255,0.3); color: var(--accent); }
+
+    /* STREAM TEXT */
+    .stream-container {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 14px;
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--text2);
+      line-height: 1.8;
+      white-space: pre-wrap;
+      min-height: 100px;
+    }
+
+    /* META BAR */
+    .meta-bar {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 1rem;
+      padding: 10px 14px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+    }
+    .meta-tag {
+      font-family: var(--mono);
+      font-size: 11px;
+      padding: 3px 9px;
+      border-radius: 3px;
+      border: 1px solid var(--border2);
+      color: var(--text2);
+    }
+    .meta-p1 { border-color: rgba(255,71,87,0.5); color: var(--red); background: rgba(255,71,87,0.08); }
+    .meta-p2 { border-color: rgba(255,165,2,0.5); color: var(--amber); background: rgba(255,165,2,0.08); }
+    .meta-p3 { border-color: rgba(0,212,255,0.4); color: var(--accent); background: rgba(0,212,255,0.07); }
+    .meta-p4 { border-color: rgba(0,200,150,0.4); color: var(--success); background: rgba(0,200,150,0.07); }
+
+    /* ACTION BUTTONS */
+    .output-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+      flex-wrap: wrap;
+    }
+    .act-btn {
+      font-family: var(--mono);
+      font-size: 11px;
+      padding: 7px 14px;
+      border-radius: 4px;
+      border: 1px solid var(--border2);
+      background: var(--surface);
+      color: var(--text2);
+      cursor: pointer;
+      letter-spacing: 0.04em;
+      transition: all 0.15s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .act-btn:hover { border-color: var(--accent2); color: var(--accent); background: rgba(0,212,255,0.06); }
+    .act-btn.primary { background: rgba(0,212,255,0.1); border-color: var(--accent2); color: var(--accent); }
+
+    /* TOAST */
+    .toast {
+      position: fixed;
+      bottom: 2rem;
+      right: 2rem;
+      background: var(--surface2);
+      border: 1px solid var(--accent2);
+      color: var(--accent);
+      font-family: var(--mono);
+      font-size: 12px;
+      padding: 10px 18px;
+      border-radius: 4px;
+      opacity: 0;
+      transform: translateY(8px);
+      transition: all 0.2s;
+      pointer-events: none;
+      z-index: 999;
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+
+    /* CONFIG PANEL */
+    .config-bar {
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      padding: 1rem 2rem;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .config-label { font-family: var(--mono); font-size: 11px; color: var(--text3); letter-spacing: 0.06em; text-transform: uppercase; }
+    .config-input {
+      background: var(--bg);
+      border: 1px solid var(--border2);
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 12px;
+      padding: 6px 12px;
+      border-radius: 4px;
+      width: 340px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .config-input:focus { border-color: var(--accent2); }
+    .save-btn {
+      font-family: var(--mono);
+      font-size: 11px;
+      padding: 6px 14px;
+      border: 1px solid var(--accent2);
+      background: rgba(0,212,255,0.08);
+      color: var(--accent);
+      border-radius: 4px;
+      cursor: pointer;
+      letter-spacing: 0.04em;
+      transition: all 0.15s;
+    }
+    .save-btn:hover { background: rgba(0,212,255,0.16); }
+    .key-status {
+      font-family: var(--mono);
+      font-size: 11px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .key-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text3); }
+    .key-dot.active { background: var(--success); }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-dot"></div>
+    RCA.ai
+  </div>
+  <div class="header-tag">ITES Hackathon Tool v1.0</div>
+</header>
+
+<div class="hero">
+  <p class="hero-eyebrow">// AI-Powered Incident Analysis</p>
+  <h1>Root Cause <span>Analyzer</span></h1>
+  <p>Paste your incident data. Get a full RCA report in seconds — not hours.</p>
+  <div class="hero-stats">
+    <div class="stat"><div class="stat-num">2h+</div><div class="stat-label">Time saved</div></div>
+    <div class="stat"><div class="stat-num">8</div><div class="stat-label">RCA sections</div></div>
+    <div class="stat"><div class="stat-num">&lt;30s</div><div class="stat-label">Analysis time</div></div>
+  </div>
+</div>
+
+<div class="main">
+
+  <!-- INPUT PANEL -->
+  <div class="input-panel">
+    <div class="panel-title">// incident input</div>
+
+    <div class="field-group">
+      <label>Incident title</label>
+      <input type="text" id="inc-title" placeholder="e.g. Production API returning 502 errors" />
+    </div>
+
+    <div class="field-group">
+      <label>Severity</label>
+      <div class="sev-row">
+        <button class="sev-btn active-p1" data-sev="P1 — Critical" onclick="setSev(this,'active-p1')">P1 Critical</button>
+        <button class="sev-btn" data-sev="P2 — High" onclick="setSev(this,'active-p2')">P2 High</button>
+        <button class="sev-btn" data-sev="P3 — Medium" onclick="setSev(this,'active-p3')">P3 Medium</button>
+        <button class="sev-btn" data-sev="P4 — Low" onclick="setSev(this,'active-p4')">P4 Low</button>
+      </div>
+    </div>
+
+    <div class="field-row">
+      <div class="field-group">
+        <label>Duration</label>
+        <input type="text" id="inc-duration" placeholder="e.g. 2h 30min" />
+      </div>
+      <div class="field-group">
+        <label>Affected users</label>
+        <input type="text" id="inc-users" placeholder="e.g. ~500 users" />
+      </div>
+    </div>
+
+    <div class="field-group">
+      <label>Affected systems / services</label>
+      <input type="text" id="inc-systems" placeholder="e.g. Payment API, Auth Service, PostgreSQL cluster" />
+    </div>
+
+    <div class="field-group">
+      <label>Error logs &amp; alerts</label>
+      <textarea id="inc-logs" rows="4" placeholder="Paste error messages, log snippets, alert notifications, monitoring output..."></textarea>
+    </div>
+
+    <div class="field-group">
+      <label>Timeline of events</label>
+      <textarea id="inc-timeline" rows="4" placeholder="14:02 — Spike in 502 errors detected&#10;14:05 — On-call engineer paged&#10;14:20 — DB connection pool exhausted..."></textarea>
+    </div>
+
+    <div class="field-group">
+      <label>Recent changes (last 48h)</label>
+      <textarea id="inc-changes" rows="3" placeholder="Deployments, config changes, infra changes, patches applied..."></textarea>
+    </div>
+
+    <button class="analyze-btn" id="analyze-btn" onclick="runRCA()">
+      <span id="btn-text">▶ Run RCA Analysis</span>
+    </button>
+  </div>
+
+  <!-- OUTPUT PANEL -->
+  <div class="output-panel" id="output-panel">
+    <div class="output-header">
+      <div class="output-title-row">
+        <span style="font-family:var(--mono);font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;">// analysis output</span>
+        <span class="live-badge" id="live-badge">LIVE</span>
+      </div>
+      <div id="output-actions-top" style="display:none; gap:6px; display:none;">
+      </div>
+    </div>
+
+    <div id="output-content">
+      <div class="empty-state">
+        <div class="empty-icon">⚡</div>
+        <p>Fill in the incident details and run the analysis to generate your RCA report</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- API KEY CONFIG -->
+<div class="config-bar">
+  <span class="config-label">API Key</span>
+  <input type="password" class="config-input" id="api-key-input" placeholder="sk-ant-api03-... (stored in browser only, never sent anywhere else)" />
+  <button class="save-btn" onclick="saveKey()">Save key</button>
+  <div class="key-status">
+    <div class="key-dot" id="key-dot"></div>
+    <span id="key-status-text" style="color:var(--text3);font-size:11px;font-family:var(--mono);">No key set</span>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let selectedSev = 'P1 — Critical';
+let fullRCAText = '';
+
+function setSev(btn, cls) {
+  document.querySelectorAll('.sev-btn').forEach(b => b.className = 'sev-btn');
+  btn.classList.add(cls);
+  selectedSev = btn.dataset.sev;
+}
+
+function saveKey() {
+  const val = document.getElementById('api-key-input').value.trim();
+  if (!val) return;
+  localStorage.setItem('rca_api_key', val);
+  updateKeyStatus(val);
+  showToast('API key saved to browser storage');
+}
+
+function updateKeyStatus(key) {
+  const dot = document.getElementById('key-dot');
+  const txt = document.getElementById('key-status-text');
+  if (key) {
+    dot.classList.add('active');
+    txt.textContent = 'Key active — ' + key.slice(0,12) + '...';
+    txt.style.color = 'var(--success)';
+  } else {
+    dot.classList.remove('active');
+    txt.textContent = 'No key set';
+    txt.style.color = 'var(--text3)';
+  }
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+const sectionMeta = {
+  'executive summary':   { icon: '📋', label: 'Executive Summary' },
+  'summary':             { icon: '📋', label: 'Executive Summary' },
+  'root cause':          { icon: '🔍', label: 'Root Cause' },
+  'contributing':        { icon: '🔗', label: 'Contributing Factors' },
+  'timeline':            { icon: '⏱', label: 'Timeline of Events' },
+  'impact':              { icon: '📊', label: 'Impact Assessment' },
+  'immediate':           { icon: '⚡', label: 'Immediate Actions Taken' },
+  'recommendation':      { icon: '✅', label: 'Recommendations' },
+  'prevention':          { icon: '🛡', label: 'Prevention Measures' },
+};
+
+function getSectionMeta(heading) {
+  const h = heading.toLowerCase();
+  for (const [key, val] of Object.entries(sectionMeta)) {
+    if (h.includes(key)) return val;
+  }
+  return { icon: '▸', label: heading };
+}
+
+function getSevClass(sev) {
+  if (sev.includes('P1')) return 'meta-p1';
+  if (sev.includes('P2')) return 'meta-p2';
+  if (sev.includes('P3')) return 'meta-p3';
+  return 'meta-p4';
+}
+
+function renderRCA(text, meta) {
+  const out = document.getElementById('output-content');
+  let html = `<div class="meta-bar">
+    <span class="meta-tag ${getSevClass(meta.sev)}">${meta.sev}</span>
+    ${meta.duration ? `<span class="meta-tag">⏱ ${meta.duration}</span>` : ''}
+    ${meta.users ? `<span class="meta-tag">👥 ${meta.users}</span>` : ''}
+    ${meta.systems ? `<span class="meta-tag">🖥 ${meta.systems}</span>` : ''}
+  </div>`;
+
+  const sections = text.split(/\n(?=##\s)/);
+  sections.forEach(sec => {
+    const lines = sec.trim().split('\n').filter(l => l.trim());
+    if (!lines.length) return;
+    const rawHeading = lines[0].replace(/^#+\s*/, '').trim();
+    const body = lines.slice(1).join('\n').trim();
+    if (!body) return;
+    const m = getSectionMeta(rawHeading);
+    const formatted = body
+      .replace(/^[-*•]\s+(.+)$/gm, '<li>$1</li>')
+      .replace(/(<li>.*<\/li>\n?)+/gs, match => `<ul>${match}</ul>`)
+      .replace(/\n{2,}/g, '</p><p>')
+      .replace(/^(?!<[ul])(.+)$/gm, '$1');
+
+    html += `<div class="rca-section">
+      <div class="rca-section-header">
+        <span class="rca-section-icon">${m.icon}</span>
+        <span class="rca-section-title">${m.label}</span>
+      </div>
+      <div class="rca-section-body"><p>${formatted}</p></div>
+    </div>`;
+  });
+
+  html += `<div class="output-actions">
+    <button class="act-btn primary" onclick="copyReport()">⧉ Copy full report</button>
+    <button class="act-btn" onclick="downloadReport()">↓ Download .txt</button>
+    <button class="act-btn" onclick="resetForm()">↺ New analysis</button>
+  </div>`;
+
+  out.innerHTML = html;
+}
+
+async function runRCA() {
+  const apiKey = localStorage.getItem('rca_api_key');
+  if (!apiKey) {
+    showToast('Enter your Anthropic API key below first');
+    document.getElementById('api-key-input').focus();
+    return;
+  }
+
+  const title    = document.getElementById('inc-title').value.trim();
+  const duration = document.getElementById('inc-duration').value.trim();
+  const users    = document.getElementById('inc-users').value.trim();
+  const systems  = document.getElementById('inc-systems').value.trim();
+  const logs     = document.getElementById('inc-logs').value.trim();
+  const timeline = document.getElementById('inc-timeline').value.trim();
+  const changes  = document.getElementById('inc-changes').value.trim();
+
+  if (!title && !logs && !timeline) {
+    showToast('Add at least a title and logs / timeline');
+    return;
+  }
+
+  const btn = document.getElementById('analyze-btn');
+  btn.disabled = true;
+  document.getElementById('btn-text').innerHTML = '<div class="spinner"></div> Analyzing...';
+  document.getElementById('live-badge').classList.add('visible');
+  fullRCAText = '';
+
+  const out = document.getElementById('output-content');
+  out.innerHTML = `<div class="stream-container" id="stream-box"></div>`;
+
+  const prompt = `You are a senior IT operations engineer and incident analyst. Produce a thorough root cause analysis report.
+
+Incident information:
+- Title: ${title || 'Not specified'}
+- Severity: ${selectedSev}
+- Duration: ${duration || 'Not specified'}
+- Affected users: ${users || 'Not specified'}
+- Affected systems: ${systems || 'Not specified'}
+- Error logs / observations: ${logs || 'Not provided'}
+- Timeline of events: ${timeline || 'Not provided'}
+- Recent changes (last 48h): ${changes || 'None noted'}
+
+Write a detailed RCA using EXACTLY these section headings (prefix each with ##):
+
+## Executive Summary
+## Root Cause
+## Contributing Factors
+## Timeline of Events
+## Impact Assessment
+## Immediate Actions Taken
+## Recommendations
+## Prevention Measures
+
+Be specific, technical, and actionable. In the Timeline section use HH:MM — event format. In Recommendations and Prevention, use bullet points. Keep each section tight and useful for a post-incident review.`;
+
+  try {
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1500,
+        stream: true,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+
+    if (!resp.ok) {
+      const err = await resp.json();
+      throw new Error(err.error?.message || `HTTP ${resp.status}`);
+    }
+
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    const streamBox = document.getElementById('stream-box');
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const chunk = decoder.decode(value);
+      for (const line of chunk.split('\n')) {
+        if (!line.startsWith('data: ')) continue;
+        const data = line.slice(6);
+        if (data === '[DONE]') continue;
+        try {
+          const p = JSON.parse(data);
+          if (p.type === 'content_block_delta' && p.delta?.text) {
+            fullRCAText += p.delta.text;
+            streamBox.textContent = fullRCAText;
+          }
+        } catch {}
+      }
+    }
+
+    renderRCA(fullRCAText, { sev: selectedSev, duration, users, systems });
+
+  } catch (err) {
+    out.innerHTML = `<div class="rca-section">
+      <div class="rca-section-header"><span class="rca-section-icon">⚠</span><span class="rca-section-title" style="color:var(--red);">Error</span></div>
+      <div class="rca-section-body"><p style="color:var(--red);">${err.message}</p><p style="margin-top:8px;color:var(--text2);">Check your API key and try again.</p></div>
+    </div>`;
+  }
+
+  btn.disabled = false;
+  document.getElementById('btn-text').textContent = '▶ Run RCA Analysis';
+  document.getElementById('live-badge').classList.remove('visible');
+}
+
+function copyReport() {
+  navigator.clipboard.writeText(fullRCAText).then(() => showToast('Report copied to clipboard'));
+}
+
+function downloadReport() {
+  const title = document.getElementById('inc-title').value.trim() || 'rca-report';
+  const blob = new Blob([fullRCAText], { type: 'text/plain' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = title.toLowerCase().replace(/\s+/g,'-') + '-rca.txt';
+  a.click();
+}
+
+function resetForm() {
+  document.getElementById('inc-title').value = '';
+  document.getElementById('inc-duration').value = '';
+  document.getElementById('inc-users').value = '';
+  document.getElementById('inc-systems').value = '';
+  document.getElementById('inc-logs').value = '';
+  document.getElementById('inc-timeline').value = '';
+  document.getElementById('inc-changes').value = '';
+  document.getElementById('output-content').innerHTML = `<div class="empty-state"><div class="empty-icon">⚡</div><p>Fill in the incident details and run the analysis to generate your RCA report</p></div>`;
+  fullRCAText = '';
+}
+
+const saved = localStorage.getItem('rca_api_key');
+if (saved) {
+  document.getElementById('api-key-input').value = saved;
+  updateKeyStatus(saved);
+}
+</script>
+</body>
+</html>
